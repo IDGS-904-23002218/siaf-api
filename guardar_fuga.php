@@ -2,6 +2,10 @@
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 require_once "conexion.php";
+require_once "vendor/autoload.php";
+
+use PhpMqtt\Client\MqttClient;
+use PhpMqtt\Client\ConnectionSettings;
 
 $datos = json_decode(file_get_contents("php://input"), true);
 
@@ -40,7 +44,38 @@ $stmt = $conexion->prepare($sql);
 $stmt->bind_param("sds", $seccion, $volumen, $severidad);
 
 if ($stmt->execute()) {
-    echo json_encode(["ok" => true, "id" => $conexion->insert_id, "mensaje" => "Fuga registrada"]);
+    $fugaId = $conexion->insert_id;
+
+    // Publicar a MQTT para que la app (y cualquier otro cliente suscrito)
+    // reciba la notificación en tiempo real, sin importar quién haya
+    // creado la fuga (ESP32, Postman, etc.)
+    try {
+        $mqtt = new MqttClient(
+            "e47da3fe341c415c80da279011aa214f.s1.eu.hivemq.cloud",
+            8883,
+            "siaf_backend_" . uniqid() // client id único para evitar choques
+        );
+
+        $settings = (new ConnectionSettings())
+            ->setUsername("Carlos")
+            ->setPassword("CarlosLR01")
+            ->setUseTls(true)
+            ->setConnectTimeout(5);
+
+        $mqtt->connect($settings, true);
+        $mqtt->publish("siaf/fuga", json_encode([
+            "fuga_id"   => $fugaId,
+            "seccion"   => $seccion,
+            "severidad" => $severidad
+        ]), 1);
+        $mqtt->disconnect();
+    } catch (\Throwable $e) {
+        // No bloqueamos la respuesta HTTP si MQTT falla;
+        // la fuga ya quedó guardada en la base de datos.
+        error_log("Error publicando a MQTT: " . $e->getMessage());
+    }
+
+    echo json_encode(["ok" => true, "id" => $fugaId, "mensaje" => "Fuga registrada"]);
 } else {
     http_response_code(500);
     echo json_encode(["error" => "Error al guardar fuga"]);

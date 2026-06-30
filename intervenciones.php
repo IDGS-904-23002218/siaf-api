@@ -40,11 +40,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmt->bind_param("iisss", $fuga_id, $usuario_id, $hora_llegada, $accion, $notas);
 
     if ($stmt->execute()) {
-        // Calcular duración real: desde fecha_deteccion hasta ahora
+        // Calcular duración real en horas con decimales (no truncar a horas enteras),
+        // así una fuga resuelta en 20 minutos muestra 0.33 h en vez de 0.
         $conexion->query("
             UPDATE fugas 
             SET estado = 'Resuelta',
-                duracion_horas = TIMESTAMPDIFF(HOUR, fecha_deteccion, NOW())
+                duracion_horas = ROUND(TIMESTAMPDIFF(SECOND, fecha_deteccion, NOW()) / 3600, 2)
             WHERE id = $fuga_id
         ");
         echo json_encode(["ok" => true, "mensaje" => "Intervención registrada"]);
