@@ -14,5 +14,7 @@ if ($conexion->connect_error) {
     echo json_encode(["error" => "Error de conexión: " . $conexion->connect_error]);
     exit();
 }
+
 $conexion->set_charset("utf8");
+$conexion->query("SET time_zone = '-06:00'");
 ?>

@@ -31,19 +31,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $usuario_id = $datos["usuario_id"] ?? 0;
     $accion     = $datos["accion"]     ?? "";
     $notas      = $datos["notas"]      ?? "";
-
     $hora_llegada = date("Y-m-d H:i:s");
 
     $sql = "INSERT INTO intervenciones 
                 (fuga_id, usuario_id, hora_llegada, accion, notas)
             VALUES (?, ?, ?, ?, ?)";
-
     $stmt = $conexion->prepare($sql);
     $stmt->bind_param("iisss", $fuga_id, $usuario_id, $hora_llegada, $accion, $notas);
 
     if ($stmt->execute()) {
-        // Actualizar estado de la fuga a Resuelta
-        $conexion->query("UPDATE fugas SET estado='Resuelta' WHERE id=$fuga_id");
+        // Calcular duración real: desde fecha_deteccion hasta ahora
+        $conexion->query("
+            UPDATE fugas 
+            SET estado = 'Resuelta',
+                duracion_horas = TIMESTAMPDIFF(HOUR, fecha_deteccion, NOW())
+            WHERE id = $fuga_id
+        ");
         echo json_encode(["ok" => true, "mensaje" => "Intervención registrada"]);
     } else {
         http_response_code(500);
